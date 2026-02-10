@@ -28,71 +28,38 @@ export async function scrapeRecipes(searchTerm) {
     const $ = cheerio.load(html)
 
     const recipes = []
+    const recipeLinks = []
 
-    // Parse recipe cards from search results
-    // Note: Cookpad's structure may vary by region
-    $('.recipe-preview, .recipe-card, [class*="recipe"]').each((index, element) => {
-      try {
-        const $el = $(element)
-        
-        // Try to extract recipe information
-        const title = $el.find('h2, h3, .recipe-title, [class*="title"]').first().text().trim()
-        const imageUrl = $el.find('img').first().attr('src') || $el.find('img').first().attr('data-src')
-        const recipeUrl = $el.find('a').first().attr('href')
-
-        if (title && title.length > 0) {
-          const recipe = {
-            id: randomUUID(),
-            title: title,
-            image: imageUrl ? (imageUrl.startsWith('http') ? imageUrl : `https://cookpad.com${imageUrl}`) : null,
-            url: recipeUrl ? (recipeUrl.startsWith('http') ? recipeUrl : `https://cookpad.com${recipeUrl}`) : null,
-            ingredients: extractIngredients($el),
-            instructions: [],
-            cookTime: extractCookTime($el),
-            servings: extractServings($el),
-            scrapedAt: new Date().toISOString()
-          }
-
-          recipes.push(recipe)
+    // Collect recipe URLs from search results
+    $('a[href*="/recipes/"]').each((index, element) => {
+      if (index >= 10) return false // Limit to 10 recipes
+      
+      const href = $(element).attr('href')
+      if (href && href.includes('/recipes/') && !href.includes('/search')) {
+        const fullUrl = href.startsWith('http') ? href : `https://cookpad.com${href}`
+        if (!recipeLinks.includes(fullUrl)) {
+          recipeLinks.push(fullUrl)
         }
-      } catch (error) {
-        console.error('Error parsing recipe element:', error)
       }
     })
 
-    // If we didn't get recipes with the above selector, try a more general approach
-    if (recipes.length === 0) {
-      console.log('Trying alternative parsing method...')
-      
-      // Look for links that contain recipe patterns
-      $('a[href*="/recipe"], a[href*="recipes"]').each((index, element) => {
-        if (index >= 10) return false // Limit to 10 recipes
+    console.log(`📋 Found ${recipeLinks.length} recipe links`)
 
-        const $el = $(element)
-        const title = $el.text().trim() || $el.find('h2, h3, span, div').first().text().trim()
-        const recipeUrl = $el.attr('href')
-        const $img = $el.find('img').first()
-        const imageUrl = $img.attr('src') || $img.attr('data-src')
-
-        if (title && title.length > 5 && recipeUrl) {
-          recipes.push({
-            id: randomUUID(),
-            title: title,
-            image: imageUrl ? (imageUrl.startsWith('http') ? imageUrl : `https://cookpad.com${imageUrl}`) : null,
-            url: recipeUrl.startsWith('http') ? recipeUrl : `https://cookpad.com${recipeUrl}`,
-            ingredients: generateSampleIngredients(title),
-            instructions: generateSampleInstructions(title),
-            cookTime: '30 min',
-            servings: '4',
-            scrapedAt: new Date().toISOString()
-          })
+    // Scrape each recipe page for detailed information
+    for (const recipeUrl of recipeLinks.slice(0, 5)) { // Limit to 5 detailed scrapes
+      try {
+        const recipe = await scrapeRecipeDetail(recipeUrl)
+        if (recipe && recipe.ingredients.length > 0) {
+          recipes.push(recipe)
         }
-      })
+      } catch (error) {
+        console.error(`Error scraping ${recipeUrl}:`, error.message)
+      }
     }
 
-    console.log(`✅ Found ${recipes.length} recipes`)
+    console.log(`✅ Successfully scraped ${recipes.length} recipes with ingredients`)
     
-    // Return at least some sample data if scraping failed
+    // Return sample data if scraping failed
     if (recipes.length === 0) {
       console.log('No recipes found, generating sample data...')
       return generateSampleRecipes(searchTerm)
@@ -107,33 +74,124 @@ export async function scrapeRecipes(searchTerm) {
 }
 
 /**
- * Extract ingredients from recipe element
+ * Scrape detailed recipe information from a recipe page
+ * @param {string} recipeUrl - The URL of the recipe page
+ * @returns {Promise<Object>} Recipe object with ingredients
  */
-function extractIngredients($el) {
-  const ingredients = []
-  
-  $el.find('.ingredient, [class*="ingredient"]').each((i, elem) => {
-    const text = $(elem).text().trim()
-    if (text) ingredients.push(text)
+async function scrapeRecipeDetail(recipeUrl) {
+  console.log(`📖 Scraping recipe details from: ${recipeUrl}`)
+
+  const response = await fetch(recipeUrl, {
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+    }
   })
 
-  return ingredients.length > 0 ? ingredients : []
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`)
+  }
+
+  const html = await response.text()
+  const $ = cheerio.load(html)
+
+  // Extract recipe title
+  const title = $('h1.recipe-title, h1[class*="title"], .page-title h1, h1').first().text().trim() || 'Untitled Recipe'
+
+  // Extract recipe image - try multiple methods
+  let imageUrl = null
+  
+  // Method 1: Try meta og:image tag
+  const ogImage = $('meta[property="og:image"]').attr('content')
+  if (ogImage) {
+    imageUrl = ogImage
+  }
+  
+  // Method 2: Try main recipe image classes
+  if (!imageUrl) {
+    imageUrl = $('.recipe-image img, .main-photo img, #main-photo img').first().attr('src')
+  }
+  
+  // Method 3: Try any large image
+  if (!imageUrl) {
+    $('img').each((i, img) => {
+      const src = $(img).attr('src')
+      if (src && (src.includes('recipe') || src.includes('image') || src.includes('photo'))) {
+        imageUrl = src
+        return false // break
+      }
+    })
+  }
+  
+  // Method 4: Get first substantial image
+  if (!imageUrl) {
+    imageUrl = $('img').first().attr('src')
+  }
+
+  // Extract ingredients (Ramuan)
+  const ingredients = []
+  
+  // Look for ingredient list - Cookpad uses various selectors
+  $('.ingredient, .ingredient-list li, [class*="ingredient"] li, .ingredients-list li, [class*="Ingredient"]').each((i, elem) => {
+    const text = $(elem).text().trim()
+    if (text && text.length > 0 && !text.toLowerCase().includes('ramuan')) {
+      // Extract just the ingredient name, remove quantities
+      const cleaned = cleanIngredientText(text)
+      if (cleaned) {
+        ingredients.push(cleaned)
+      }
+    }
+  })
+
+  // Extract instructions
+  const instructions = []
+  $('.step, .instruction, [class*="step"], [class*="Step"], ol li, .steps li').each((i, elem) => {
+    const text = $(elem).text().trim()
+    if (text && text.length > 10) { // At least 10 chars for a meaningful instruction
+      instructions.push(text)
+    }
+  })
+
+  // Extract servings
+  const servingsText = $('[class*="serving"], [class*="portion"], [class*="Serving"]').first().text()
+  const servingsMatch = servingsText.match(/\d+/)
+  const servings = servingsMatch ? servingsMatch[0] : '4'
+
+  // Extract cook time
+  const cookTimeText = $('[class*="time"], [class*="duration"], [class*="Time"]').first().text()
+  const cookTime = cookTimeText.trim() || '30 min'
+
+  // If no ingredients found, try to generate from title
+  const finalIngredients = ingredients.length > 0 ? ingredients : generateSampleIngredients(title)
+
+  return {
+    id: randomUUID(),
+    title: title,
+    image: imageUrl ? (imageUrl.startsWith('http') ? imageUrl : `https://cookpad.com${imageUrl}`) : null,
+    url: recipeUrl,
+    ingredients: finalIngredients,
+    instructions: instructions.length > 0 ? instructions : generateSampleInstructions(title),
+    cookTime: cookTime,
+    servings: servings,
+    scrapedAt: new Date().toISOString()
+  }
 }
 
 /**
- * Extract cook time from recipe element
+ * Clean ingredient text to extract just the ingredient name
  */
-function extractCookTime($el) {
-  const timeText = $el.find('[class*="time"], [class*="duration"]').first().text()
-  return timeText.trim() || '30 min'
-}
+function cleanIngredientText(text) {
+  // Remove common quantity indicators and measurements
+  let cleaned = text
+    .replace(/^\d+[\s\/\-]*(cawan|sb|sudu|biji|kg|g|ml|l|cup|tbsp|tsp|oz|lb|piece|pieces)?/gi, '')
+    .replace(/\([^)]*\)/g, '') // Remove parentheses content
+    .replace(/\d+/g, '') // Remove remaining numbers
+    .trim()
 
-/**
- * Extract servings from recipe element
- */
-function extractServings($el) {
-  const servingsText = $el.find('[class*="serving"], [class*="portion"]').first().text()
-  return servingsText.trim() || '4'
+  // Only return if there's meaningful text left
+  if (cleaned.length > 2) {
+    return cleaned
+  }
+  return null
 }
 
 /**
@@ -151,7 +209,10 @@ function generateSampleIngredients(title) {
     'masak': ['oil', 'onion', 'garlic', 'spices'],
     'pasta': ['pasta', 'tomato sauce', 'garlic', 'olive oil', 'basil'],
     'salad': ['lettuce', 'tomato', 'cucumber', 'olive oil', 'lemon'],
-    'curry': ['curry powder', 'coconut milk', 'onion', 'garlic', 'ginger']
+    'curry': ['curry powder', 'coconut milk', 'onion', 'garlic', 'ginger'],
+    'bawang': ['onion', 'flour', 'egg', 'salt', 'oil'],
+    'tepung': ['flour', 'water', 'salt', 'baking powder'],
+    'cekodok': ['flour', 'banana', 'sugar', 'salt', 'oil']
   }
 
   const titleLower = title.toLowerCase()
@@ -188,11 +249,20 @@ function generateSampleInstructions(title) {
  * Generate sample recipes when scraping fails
  */
 function generateSampleRecipes(searchTerm) {
+  // Use Unsplash food images as defaults
+  const foodImages = [
+    'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400&h=300&fit=crop', // Cooking
+    'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=400&h=300&fit=crop', // Food prep
+    'https://images.unsplash.com/photo-1455619452474-d2be8b1e70cd?w=400&h=300&fit=crop', // Food
+    'https://images.unsplash.com/photo-1606787366850-de6330128bfc?w=400&h=300&fit=crop', // Asian food
+    'https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=400&h=300&fit=crop'  // Pizza/food
+  ]
+
   const sampleRecipes = [
     {
       id: randomUUID(),
       title: `${searchTerm} Recipe 1`,
-      image: 'https://via.placeholder.com/400x300/FF6B35/FFFFFF?text=Recipe+1',
+      image: foodImages[0],
       url: `https://cookpad.com/search/${encodeURIComponent(searchTerm)}`,
       ingredients: generateSampleIngredients(searchTerm),
       instructions: generateSampleInstructions(searchTerm),
@@ -203,7 +273,7 @@ function generateSampleRecipes(searchTerm) {
     {
       id: randomUUID(),
       title: `${searchTerm} Recipe 2`,
-      image: 'https://via.placeholder.com/400x300/F7931E/FFFFFF?text=Recipe+2',
+      image: foodImages[1],
       url: `https://cookpad.com/search/${encodeURIComponent(searchTerm)}`,
       ingredients: generateSampleIngredients(searchTerm),
       instructions: generateSampleInstructions(searchTerm),
@@ -214,7 +284,7 @@ function generateSampleRecipes(searchTerm) {
     {
       id: randomUUID(),
       title: `${searchTerm} Recipe 3`,
-      image: 'https://via.placeholder.com/400x300/4CAF50/FFFFFF?text=Recipe+3',
+      image: foodImages[2],
       url: `https://cookpad.com/search/${encodeURIComponent(searchTerm)}`,
       ingredients: generateSampleIngredients(searchTerm),
       instructions: generateSampleInstructions(searchTerm),

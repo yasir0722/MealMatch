@@ -107,6 +107,7 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { useRecipeStore } from '../stores/recipeStore'
+import { showSuccess, showConfirm } from '../utils/swal'
 
 const recipeStore = useRecipeStore()
 const newIngredient = ref('')
@@ -137,9 +138,21 @@ const quickAdd = (ingredient) => {
   recipeStore.addIngredient(ingredient)
 }
 
-const clearAll = () => {
-  if (confirm('Are you sure you want to clear all ingredients?')) {
+const clearAll = async () => {
+  const result = await showConfirm(
+    'Are you sure?',
+    'This will clear all your ingredients!',
+    'Yes, clear all!',
+    'Cancel'
+  )
+
+  if (result.isConfirmed) {
     recipeStore.clearIngredients()
+    showSuccess(
+      'Cleared!',
+      'All ingredients have been removed.',
+      2000
+    )
   }
 }
 </script>

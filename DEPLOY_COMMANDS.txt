@@ -1,0 +1,18 @@
+# Quick Deploy Commands
+
+# Run these commands in order:
+
+# 1. Add all files to git
+git add .
+
+# 2. Commit changes
+git commit -m "Deploy MealMatch to GitHub Pages"
+
+# 3. Push to GitHub
+git push origin main
+
+# 4. Then go to GitHub Settings > Pages
+# Configure: Branch = main, Folder = /docs
+
+# Your site will be live at:
+# https://yasir0722.github.io/MealMatch/

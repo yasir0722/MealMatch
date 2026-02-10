@@ -20,6 +20,7 @@ A smart meal-suggestion app that helps you decide what to cook based on the ingr
 - **Pinia** - State management
 - **Axios** - HTTP client
 - **Vite** - Fast build tool
+- **SweetAlert2** - Beautiful modal dialogs
 
 ### Backend
 - **Node.js** - JavaScript runtime
@@ -129,21 +130,26 @@ MealMatch/
 
 ### Ingredient Matching Algorithm
 The app uses intelligent string matching to compare your ingredients with recipe requirements:
+- **Matches based on actual ingredient list (Ramuan), not recipe title**
 - Partial matches (e.g., "chicken" matches "chicken breast")
 - Case-insensitive comparison
-- Match percentage calculation
+- Match percentage calculation based on available vs required ingredients
 - Missing ingredient detection
+- Cleans ingredient names by removing quantities (e.g., "3 cawan Tepung gandum" → "Tepung gandum")
 
 ### Recipe Scraping
 - Scrapes recipe data from Cookpad.com
-- Extracts title, image, ingredients, and instructions
+- **Extracts actual ingredients (Ramuan) from recipe pages**
+- Visits individual recipe pages for detailed information
 - Handles various Cookpad page structures
+- Cleans ingredient text (removes quantities, keeps names)
 - Falls back to sample data if scraping fails
 
 ### State Management
 - Pinia store for centralized state
 - Persistent ingredient storage (localStorage)
 - Reactive computed properties for matches
+- **Intelligent ingredient matching algorithm**
 - Efficient recipe filtering and sorting
 
 ## Development

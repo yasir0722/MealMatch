@@ -4,3 +4,4 @@ dist
 .env
 .DS_Store
 server/recipes.json
+# Note: /docs folder is NOT ignored - it's needed for GitHub Pages deployment

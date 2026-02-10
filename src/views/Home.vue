@@ -72,7 +72,11 @@
           @click="$router.push(`/recipe/${recipe.id}`)"
         >
           <div class="recipe-image">
-            <img :src="recipe.image || 'https://via.placeholder.com/300x200?text=No+Image'" :alt="recipe.title" />
+            <img 
+              :src="recipe.image || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400&h=300&fit=crop'" 
+              :alt="recipe.title"
+              @error="handleImageError"
+            />
             <div class="match-badge">
               {{ Math.round(recipe.matchPercentage) }}% Match
             </div>
@@ -150,6 +154,11 @@ const addIngredient = () => {
     recipeStore.addIngredient(newIngredient.value)
     newIngredient.value = ''
   }
+}
+
+const handleImageError = (event) => {
+  // Fallback to a default food image if image fails to load
+  event.target.src = 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400&h=300&fit=crop'
 }
 </script>
 

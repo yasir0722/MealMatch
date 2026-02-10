@@ -14,9 +14,10 @@
     <div v-else class="recipe-container">
       <div class="recipe-header">
         <img
-          :src="recipe.image || 'https://via.placeholder.com/800x400?text=No+Image'"
+          :src="recipe.image || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=800&h=400&fit=crop'"
           :alt="recipe.title"
           class="recipe-hero-image"
+          @error="handleImageError"
         />
         <div class="recipe-title-section">
           <h1>{{ recipe.title }}</h1>
@@ -121,6 +122,11 @@ const hasIngredient = (ingredient) => {
     ingredient.toLowerCase().includes(myIng.toLowerCase()) ||
     myIng.toLowerCase().includes(ingredient.toLowerCase())
   )
+}
+
+const handleImageError = (event) => {
+  // Fallback to a default food image if image fails to load
+  event.target.src = 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=800&h=400&fit=crop'
 }
 </script>
 

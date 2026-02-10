@@ -73,7 +73,11 @@
         @click="$router.push(`/recipe/${recipe.id}`)"
       >
         <div class="recipe-image">
-          <img :src="recipe.image || 'https://via.placeholder.com/300x200?text=No+Image'" :alt="recipe.title" />
+          <img 
+            :src="recipe.image || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400&h=300&fit=crop'" 
+            :alt="recipe.title"
+            @error="handleImageError"
+          />
           <div v-if="recipe.matchPercentage > 0" class="match-badge">
             {{ Math.round(recipe.matchPercentage) }}% Match
           </div>
@@ -103,6 +107,7 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { useRecipeStore } from '../stores/recipeStore'
+import { showSuccess, showError } from '../utils/swal'
 
 const recipeStore = useRecipeStore()
 const searchTerm = ref('')
@@ -144,11 +149,22 @@ const scrapeRecipes = async () => {
 
   try {
     await recipeStore.scrapeRecipes(searchTerm.value)
-    alert(`Successfully scraped recipes for "${searchTerm.value}"!`)
+    showSuccess(
+      'Success!',
+      `Successfully scraped recipes for "${searchTerm.value}"!`
+    )
     searchTerm.value = ''
   } catch (error) {
-    alert('Failed to scrape recipes. Please try again.')
+    showError(
+      'Oops...',
+      'Failed to scrape recipes. Please try again.'
+    )
   }
+}
+
+const handleImageError = (event) => {
+  // Fallback to a default food image if image fails to load
+  event.target.src = 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400&h=300&fit=crop'
 }
 </script>
 

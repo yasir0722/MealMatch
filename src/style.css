@@ -209,3 +209,31 @@ textarea:focus {
 .fade-leave-to {
   opacity: 0;
 }
+
+/* SweetAlert2 Custom Styling */
+.meal-match-popup {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
+  border-radius: 16px !important;
+}
+
+.meal-match-title {
+  color: var(--text-primary) !important;
+  font-weight: 700 !important;
+}
+
+.meal-match-btn {
+  border-radius: 8px !important;
+  font-weight: 600 !important;
+  padding: 12px 24px !important;
+  font-size: 16px !important;
+  transition: all 0.3s ease !important;
+}
+
+.meal-match-btn:hover {
+  transform: translateY(-2px) !important;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15) !important;
+}
+
+.swal2-icon {
+  border-width: 3px !important;
+}
