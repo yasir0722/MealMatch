@@ -51,6 +51,8 @@ git push origin main
    - **Folder:** `/docs`
 5. Click **Save**
 
+**Note:** GitHub will automatically deploy from the `/docs` folder whenever you push to `main`. No additional actions needed!
+
 ### Step 4: Wait for Deployment
 - GitHub will automatically build and deploy your site
 - Check the **Actions** tab to see deployment progress
